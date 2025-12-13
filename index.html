@@ -60,7 +60,7 @@
                     <button data-lang="pt">PT</button>
                 </div>
             </div>
-            <span id="version" style="line-height:36px;color:#999;font-size:12px;">v1.0.3</span>
+            <span id="version" style="line-height:36px;color:#999;font-size:12px;">v1.0.4</span>
         </div>
     </div>
     <div id="content" lang="en"></div>
@@ -110,6 +110,7 @@
             }
             content.innerHTML = '';
             content.removeAttribute('translate');
+            isLoadingHistory = false;
             currentHistoryId = null;
             text.split(/\n\s*\n/).forEach(para => {
                 if (para.trim()) {
