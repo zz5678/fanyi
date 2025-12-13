@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>沉浸式翻译辅助</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px; line-height: 1.8; }
+        .toolbar { position: fixed; top: 20px; left: 20px; right: 20px; z-index: 9999; display: flex; gap: 16px; flex-wrap: wrap; }
+        .toolbar-right { margin-left: auto; display: flex; gap: 16px; }
+        .toolbar button, .toolbar-right button { padding: 8px 16px; border: 1px solid #ccc; border-radius: 4px; background: #fff; cursor: pointer; font-size: 14px; }
+        .toolbar button:hover, .toolbar-right button:hover { background: #f0f0f0; }
+        .toolbar button:active, .toolbar-right button:active { background: #e0e0e0; }
+        #content { max-width: 800px; margin: 0 auto; white-space: pre-wrap; word-wrap: break-word; }
+        .paste-modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; justify-content: center; align-items: center; }
+        .paste-modal.show { display: flex; }
+        .paste-box { background: #fff; padding: 20px; border-radius: 8px; width: 90%; max-width: 600px; }
+        .paste-box textarea { width: 100%; height: 200px; margin-bottom: 10px; padding: 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; }
+        .paste-box button { padding: 8px 20px; margin-right: 10px; border: 1px solid #ccc; border-radius: 4px; background: #fff; cursor: pointer; }
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 10px 20px; border-radius: 4px; display: none; }
+        .history-modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; justify-content: center; align-items: center; }
+        .history-modal.show { display: flex; }
+        .history-box { background: #fff; padding: 20px; border-radius: 8px; width: 90%; max-width: 500px; max-height: 70vh; overflow-y: auto; }
+        .history-box h3 { margin-bottom: 15px; font-size: 16px; color: #333; }
+        .history-item { padding: 12px; margin-bottom: 10px; border: 1px solid #e0e0e0; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
+        .history-item:hover { background: #f5f5f5; }
+        .history-time { font-size: 12px; color: #888; margin-bottom: 5px; }
+        .history-preview { font-size: 14px; color: #333; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .history-empty { color: #888; text-align: center; padding: 20px; }
+        .history-close { float: right; background: none; border: none; font-size: 20px; cursor: pointer; color: #888; }
+        .lang-btn { width: 36px; height: 36px; border-radius: 50%; border: 1px solid #ccc; background: #fff; cursor: pointer; font-size: 12px; font-weight: bold; }
+        .lang-menu { display: none; position: absolute; top: 100%; right: 0; background: #fff; border: 1px solid #ccc; border-radius: 8px; padding: 10px; gap: 8px; flex-wrap: wrap; width: 160px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .lang-menu.show { display: flex; }
+        .lang-menu button { width: 36px; height: 36px; border-radius: 50%; border: 1px solid #ccc; background: #fff; cursor: pointer; font-size: 11px; font-weight: bold; }
+        .lang-menu button:hover { background: #f0f0f0; }
+        .lang-wrapper { position: relative; }
+        .footer { text-align: center; padding: 40px 20px; margin-top: 40px; }
+        .footer button { padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9; cursor: pointer; font-size: 12px; color: #888; }
+    </style>
+</head>
+<body>
+    <div class="toolbar" translate="no">
+        <button id="btnPaste">粘贴</button>
+        <button id="btnCopy">复制</button>
+        <button id="btnHistory">历史</button>
+        <div class="toolbar-right">
+            <button id="btnFontMinus">A-</button>
+            <button id="btnFontPlus">A+</button>
+            <div class="lang-wrapper">
+                <button class="lang-btn" id="btnLang">EN</button>
+                <div class="lang-menu" id="langMenu">
+                    <button data-lang="en">EN</button>
+                    <button data-lang="fr">FR</button>
+                    <button data-lang="de">DE</button>
+                    <button data-lang="es">ES</button>
+                    <button data-lang="ja">JA</button>
+                    <button data-lang="ko">KO</button>
+                    <button data-lang="ru">RU</button>
+                    <button data-lang="pt">PT</button>
+                </div>
+            </div>
+            <span id="version" style="line-height:36px;color:#999;font-size:12px;">v1.0.2</span>
+        </div>
+    </div>
+    <div id="content" lang="en"></div>
+    <div class="footer" translate="no">
+        <button id="btnDebug">Debug</button>
+    </div>
+    <div id="toast" class="toast"></div>
+    <div id="pasteModal" class="paste-modal" translate="no">
+        <div class="paste-box">
+            <textarea id="pasteArea" placeholder="在此粘贴内容..."></textarea>
+            <button id="btnConfirmPaste">确认</button>
+            <button id="btnCancelPaste">取消</button>
+        </div>
+    </div>
+    <div id="historyModal" class="history-modal" translate="no">
+        <div class="history-box">
+            <button class="history-close" id="btnHistoryClose">&times;</button>
+            <h3>翻译历史</h3>
+            <div id="historyList"></div>
+        </div>
+    </div>
+
+    <script>
+        const content = document.getElementById('content');
+        const toast = document.getElementById('toast');
+        const toolbar = document.querySelector('.toolbar');
+
+        function adjustContentMargin() {
+            content.style.marginTop = (toolbar.offsetHeight + 40) + 'px';
+        }
+        adjustContentMargin();
+        window.addEventListener('resize', adjustContentMargin);
+
+        function showToast(msg) {
+            toast.textContent = msg;
+            toast.style.display = 'block';
+            setTimeout(() => toast.style.display = 'none', 2000);
+        }
+
+        const pasteModal = document.getElementById('pasteModal');
+        const pasteArea = document.getElementById('pasteArea');
+
+        function applyPaste(text) {
+            // 保存当前内容到历史（如果有内容）
+            if (content.innerHTML.trim()) {
+                saveHistory(content.innerHTML, currentHistoryId);
+            }
+            content.innerHTML = '';
+            content.removeAttribute('translate');
+            currentHistoryId = null;
+            text.split(/\n\s*\n/).forEach(para => {
+                if (para.trim()) {
+                    const p = document.createElement('p');
+                    p.textContent = para.trim();
+                    p.lang = 'en';
+                    content.appendChild(p);
+                }
+            });
+            // 立即保存新内容
+            currentHistoryId = saveHistory(content.innerHTML, null);
+            // 尝试触发沉浸式翻译
+            setTimeout(() => {
+                window.dispatchEvent(new Event('scroll'));
+                window.dispatchEvent(new Event('resize'));
+            }, 100);
+            showToast('已粘贴');
+        }
+
+        // 页面关闭/刷新前保存
+        window.addEventListener('beforeunload', () => {
+            if (content.innerHTML.trim()) {
+                saveHistory(content.innerHTML, currentHistoryId);
+            }
+        });
+
+        // 监听翻译完成，自动更新历史
+        let saveTimer = null;
+        function isTranslationComplete() {
+            const paragraphs = content.querySelectorAll('p[lang="en"]');
+            if (paragraphs.length === 0) return false;
+            for (const p of paragraphs) {
+                if (!p.querySelector('.immersive-translate-target-wrapper')) return false;
+            }
+            return true;
+        }
+        const observer = new MutationObserver(() => {
+            if (!currentHistoryId || content.hasAttribute('translate') || isLoadingHistory) return;
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(() => {
+                if (isTranslationComplete()) {
+                    saveHistory(content.innerHTML, currentHistoryId);
+                }
+            }, 1000);
+        });
+        observer.observe(content, { childList: true, subtree: true });
+
+        // 粘贴：先尝试 API，失败则弹出输入框
+        document.getElementById('btnPaste').addEventListener('click', async () => {
+            try {
+                const text = await navigator.clipboard.readText();
+                applyPaste(text);
+            } catch (e) {
+                pasteArea.value = '';
+                pasteModal.classList.add('show');
+                pasteArea.focus();
+            }
+        });
+
+        document.getElementById('btnConfirmPaste').addEventListener('click', () => {
+            const text = pasteArea.value;
+            if (text.trim()) applyPaste(text);
+            pasteModal.classList.remove('show');
+        });
+
+        document.getElementById('btnCancelPaste').addEventListener('click', () => {
+            pasteModal.classList.remove('show');
+        });
+
+        // 复制：逐段提取原文和译文为 Markdown
+        document.getElementById('btnCopy').addEventListener('click', async () => {
+            try {
+                let markdown = '';
+                content.querySelectorAll('p').forEach(p => {
+                    const clone = p.cloneNode(true);
+                    const trans = clone.querySelector('.immersive-translate-target-inner');
+                    const transText = trans ? trans.textContent.trim() : '';
+                    clone.querySelectorAll('.immersive-translate-target-wrapper').forEach(el => el.remove());
+                    const origText = clone.textContent.trim();
+                    if (origText) markdown += origText + '\n\n';
+                    if (transText) markdown += '> ' + transText + '\n\n';
+                });
+                await navigator.clipboard.writeText(markdown.trim());
+                showToast('已复制');
+            } catch (e) {
+                showToast('复制失败: ' + e.message);
+            }
+        });
+
+        // 历史功能
+        const historyModal = document.getElementById('historyModal');
+        const historyList = document.getElementById('historyList');
+        const MAX_HISTORY = 20;
+        let currentHistoryId = null;
+        let isLoadingHistory = false; // 标记是否正在加载历史
+
+        function getHistory() {
+            return JSON.parse(localStorage.getItem('translateHistory') || '[]');
+        }
+
+        function saveHistory(html, updateId) {
+            const history = getHistory();
+            const clone = document.createElement('div');
+            clone.innerHTML = html;
+            clone.querySelectorAll('.immersive-translate-target-wrapper').forEach(el => el.remove());
+            const preview = clone.textContent.trim().slice(0, 50);
+            if (!preview) return null;
+
+            const now = Date.now();
+            if (updateId) {
+                const idx = history.findIndex(h => h.id === updateId);
+                if (idx >= 0) {
+                    history[idx].html = html;
+                    history[idx].time = now;
+                    localStorage.setItem('translateHistory', JSON.stringify(history));
+                    return updateId;
+                }
+            }
+            const item = { id: now, time: now, html, preview };
+            history.unshift(item);
+            localStorage.setItem('translateHistory', JSON.stringify(history.slice(0, MAX_HISTORY)));
+            return item.id;
+        }
+
+        function timeAgo(ts) {
+            const diff = Math.floor((Date.now() - ts) / 1000);
+            if (diff < 60) return '刚刚';
+            if (diff < 3600) return Math.floor(diff / 60) + '分钟前';
+            if (diff < 86400) return Math.floor(diff / 3600) + '小时前';
+            return Math.floor(diff / 86400) + '天前';
+        }
+
+        function renderHistory() {
+            const history = getHistory();
+            if (!history.length) {
+                historyList.innerHTML = '<div class="history-empty">暂无历史记录</div>';
+                return;
+            }
+            historyList.innerHTML = history.map(h => `
+                <div class="history-item" data-id="${h.id}">
+                    <div class="history-time">${timeAgo(h.time)}</div>
+                    <div class="history-preview">${h.preview}...</div>
+                </div>
+            `).join('');
+        }
+
+        document.getElementById('btnHistory').addEventListener('click', () => {
+            renderHistory();
+            historyModal.classList.add('show');
+        });
+
+        document.getElementById('btnHistoryClose').addEventListener('click', () => {
+            historyModal.classList.remove('show');
+        });
+
+        historyList.addEventListener('click', (e) => {
+            const item = e.target.closest('.history-item');
+            if (!item) return;
+            const id = parseInt(item.dataset.id);
+            const history = getHistory();
+            const h = history.find(x => x.id === id);
+            if (h) {
+                isLoadingHistory = true;
+                content.setAttribute('translate', 'no');
+                content.innerHTML = h.html;
+                currentHistoryId = id;
+                adjustContentMargin();
+                // 渲染完成后移除限制，允许用户手动触发翻译
+                setTimeout(() => {
+                    content.removeAttribute('translate');
+                    isLoadingHistory = false;
+                }, 500);
+            }
+            historyModal.classList.remove('show');
+        });
+
+        // Debug：复制 DOM 结构、版本号和历史信息
+        document.getElementById('btnDebug').addEventListener('click', async () => {
+            try {
+                const ver = document.getElementById('version').textContent;
+                const history = getHistory();
+                const debug = [
+                    '版本: ' + ver,
+                    'currentHistoryId: ' + currentHistoryId,
+                    '历史条数: ' + history.length,
+                    '历史IDs: ' + history.map(h => h.id).join(', '),
+                    '---',
+                    content.outerHTML
+                ].join('\n');
+                await navigator.clipboard.writeText(debug);
+                showToast('Debug 已复制');
+            } catch (e) {
+                showToast('复制失败: ' + e.message);
+            }
+        });
+
+        // 字体大小控制
+        let fontSize = parseInt(localStorage.getItem('fontSize')) || 16;
+        content.style.fontSize = fontSize + 'px';
+
+        document.getElementById('btnFontMinus').addEventListener('click', () => {
+            if (fontSize > 10) {
+                fontSize -= 2;
+                content.style.fontSize = fontSize + 'px';
+                localStorage.setItem('fontSize', fontSize);
+            }
+        });
+
+        document.getElementById('btnFontPlus').addEventListener('click', () => {
+            if (fontSize < 32) {
+                fontSize += 2;
+                content.style.fontSize = fontSize + 'px';
+                localStorage.setItem('fontSize', fontSize);
+            }
+        });
+
+        // 语言选择
+        const langBtn = document.getElementById('btnLang');
+        const langMenu = document.getElementById('langMenu');
+
+        langBtn.addEventListener('click', () => {
+            langMenu.classList.toggle('show');
+        });
+
+        langMenu.addEventListener('click', (e) => {
+            if (!e.target.dataset.lang) return;
+            const lang = e.target.dataset.lang;
+            langBtn.textContent = lang.toUpperCase();
+            // 清除翻译内容，保留原文
+            content.querySelectorAll('.immersive-translate-target-wrapper').forEach(el => el.remove());
+            // 更新语言属性
+            content.setAttribute('lang', lang);
+            content.querySelectorAll('p').forEach(p => p.setAttribute('lang', lang));
+            langMenu.classList.remove('show');
+            // 触发沉浸式翻译重新识别
+            setTimeout(() => {
+                window.dispatchEvent(new Event('scroll'));
+                window.dispatchEvent(new Event('resize'));
+            }, 100);
+        });
+
+        // 点击其他地方关闭菜单
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.lang-wrapper')) {
+                langMenu.classList.remove('show');
+            }
+        });
+    </script>
+</body>
+</html>
