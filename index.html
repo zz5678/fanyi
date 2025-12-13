@@ -60,7 +60,7 @@
                     <button data-lang="pt">PT</button>
                 </div>
             </div>
-            <span id="version" style="line-height:36px;color:#999;font-size:12px;">v1.0.4</span>
+            <span id="version" style="line-height:36px;color:#999;font-size:12px;">v1.0.5</span>
         </div>
     </div>
     <div id="content" lang="en"></div>
@@ -84,7 +84,7 @@
     </div>
 
     <script>
-        const content = document.getElementById('content');
+        let content = document.getElementById('content');
         const toast = document.getElementById('toast');
         const toolbar = document.querySelector('.toolbar');
 
@@ -108,8 +108,13 @@
             if (content.innerHTML.trim()) {
                 saveHistory(content.innerHTML, currentHistoryId);
             }
-            content.innerHTML = '';
-            content.removeAttribute('translate');
+            // 重新创建 content 元素，强制沉浸式翻译重新识别
+            const newContent = document.createElement('div');
+            newContent.id = 'content';
+            newContent.lang = 'en';
+            newContent.style.fontSize = fontSize + 'px';
+            content.parentNode.replaceChild(newContent, content);
+            content = newContent;
             isLoadingHistory = false;
             currentHistoryId = null;
             text.split(/\n\s*\n/).forEach(para => {
@@ -120,13 +125,11 @@
                     content.appendChild(p);
                 }
             });
+            adjustContentMargin();
             // 立即保存新内容
             currentHistoryId = saveHistory(content.innerHTML, null);
             // 尝试触发沉浸式翻译
             setTimeout(() => {
-                content.style.display = 'none';
-                content.offsetHeight;
-                content.style.display = '';
                 window.dispatchEvent(new Event('scroll'));
                 window.dispatchEvent(new Event('resize'));
             }, 200);
