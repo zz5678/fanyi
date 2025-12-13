@@ -60,7 +60,7 @@
                     <button data-lang="pt">PT</button>
                 </div>
             </div>
-            <span id="version" style="line-height:36px;color:#999;font-size:12px;">v1.0.2</span>
+            <span id="version" style="line-height:36px;color:#999;font-size:12px;">v1.0.3</span>
         </div>
     </div>
     <div id="content" lang="en"></div>
@@ -123,9 +123,12 @@
             currentHistoryId = saveHistory(content.innerHTML, null);
             // 尝试触发沉浸式翻译
             setTimeout(() => {
+                content.style.display = 'none';
+                content.offsetHeight;
+                content.style.display = '';
                 window.dispatchEvent(new Event('scroll'));
                 window.dispatchEvent(new Event('resize'));
-            }, 100);
+            }, 200);
             showToast('已粘贴');
         }
 
@@ -346,9 +349,12 @@
             langMenu.classList.remove('show');
             // 触发沉浸式翻译重新识别
             setTimeout(() => {
+                content.style.display = 'none';
+                content.offsetHeight;
+                content.style.display = '';
                 window.dispatchEvent(new Event('scroll'));
                 window.dispatchEvent(new Event('resize'));
-            }, 100);
+            }, 200);
         });
 
         // 点击其他地方关闭菜单
