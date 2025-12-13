@@ -60,7 +60,7 @@
                     <button data-lang="pt">PT</button>
                 </div>
             </div>
-            <span id="version" style="line-height:36px;color:#999;font-size:12px;">v1.0.5</span>
+            <span id="version" style="line-height:36px;color:#999;font-size:12px;">v1.0.6</span>
         </div>
     </div>
     <div id="content" lang="en"></div>
@@ -126,6 +126,7 @@
                 }
             });
             adjustContentMargin();
+            rebindObserver();
             // 立即保存新内容
             currentHistoryId = saveHistory(content.innerHTML, null);
             // 尝试触发沉浸式翻译
@@ -153,16 +154,25 @@
             }
             return true;
         }
-        const observer = new MutationObserver(() => {
-            if (!currentHistoryId || content.hasAttribute('translate') || isLoadingHistory) return;
-            clearTimeout(saveTimer);
-            saveTimer = setTimeout(() => {
-                if (isTranslationComplete()) {
-                    saveHistory(content.innerHTML, currentHistoryId);
-                }
-            }, 1000);
-        });
+        function createObserver() {
+            return new MutationObserver(() => {
+                if (!currentHistoryId || content.hasAttribute('translate') || isLoadingHistory) return;
+                clearTimeout(saveTimer);
+                saveTimer = setTimeout(() => {
+                    if (isTranslationComplete()) {
+                        saveHistory(content.innerHTML, currentHistoryId);
+                    }
+                }, 1000);
+            });
+        }
+        let observer = createObserver();
         observer.observe(content, { childList: true, subtree: true });
+
+        function rebindObserver() {
+            observer.disconnect();
+            observer = createObserver();
+            observer.observe(content, { childList: true, subtree: true });
+        }
 
         // 粘贴：先尝试 API，失败则弹出输入框
         document.getElementById('btnPaste').addEventListener('click', async () => {
